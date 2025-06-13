@@ -4,5 +4,4 @@ use std::collections::HashMap;
 fn main() {
     println!("hello");
     
-    // aider u are slow ai!
 }
