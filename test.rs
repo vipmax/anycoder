@@ -2,5 +2,8 @@
 fn main() {
     println!("hello");
     
-    // get fruits list AI!
+    let fruits = vec!["apple", "banana", "orange"];
+    for fruit in fruits {
+        println!("{}", fruit);
+    }
 }
