@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[tokio::main]
 fn main() {
     println!("hello");
@@ -6,5 +8,11 @@ fn main() {
     for fruit in fruits {
         println!("{}", fruit);
     }
-    // get vegitables hash map bellow ai! 
+    let mut vegetables = HashMap::new();
+    vegetables.insert("carrot", "orange");
+    vegetables.insert("broccoli", "green");
+
+    for (veg, color) in &vegetables {
+        println!("{} is {}", veg, color);
+    }
 }
