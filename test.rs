@@ -6,5 +6,5 @@ fn main() {
     for fruit in fruits {
         println!("{}", fruit);
     }
-    
+    // get vegitables hash map bellow ai! 
 }
