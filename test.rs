@@ -7,5 +7,4 @@ fn main() {
         println!("{}", fruit);
     }
     
-    len //AI!
 }
