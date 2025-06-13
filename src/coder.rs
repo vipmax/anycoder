@@ -5,7 +5,6 @@ use serde_json::json;
 use crate::prompts::{SYSTEM_PROMPT, REMINDER};
 use crate::utils::{ chfind, offset_to_point };
 
-
 pub const CURSOR_MARKER: &str = "??";
 const STOKEN: &str = "<|SEARCH|>";
 const DTOKEN: &str = "<|DIVIDE|>";

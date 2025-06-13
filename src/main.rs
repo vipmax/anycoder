@@ -2,9 +2,10 @@ use log::{debug, error, info, warn};
 use notify::{recommended_watcher, Event, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 use anyhow::Result;
-use std::path::PathBuf;
-use std::{sync::Arc, collections::HashMap};
+use std::path::{Path, PathBuf};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use dotenv::dotenv;
 
 mod utils;
@@ -22,9 +23,12 @@ struct FileState {
     content: String,
 }
 
-type SharedFileMap = Arc<RwLock<HashMap<PathBuf, FileState>>>;
-type SharedCoder = Arc<RwLock<Coder>>;
+struct State {
+    file2state: HashMap<PathBuf, FileState>,
+    coder: Coder,
+}
 
+type SharedState = Arc<RwLock<State>>;
 
 fn init_logger() {
     env_logger::Builder::from_default_env()
@@ -33,10 +37,7 @@ fn init_logger() {
 }
 
 async fn handle_watch_event(
-    path: &std::path::PathBuf,
-    event: &notify::Event,
-    state: SharedFileMap,
-    coder: SharedCoder,
+    path: &PathBuf, event: &notify::Event, state: SharedState
 ) -> Result<()> {
     info!("watch event: {:?}", event);
 
@@ -48,7 +49,7 @@ async fn handle_watch_event(
             log_remove_event(path);
         }
         notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
-            handle_modify_event(path, state, coder).await?;
+            handle_modify_event(path, state).await?;
         }
         _ => {}
     }
@@ -56,16 +57,16 @@ async fn handle_watch_event(
     Ok(())
 }
 
-fn log_create_event(path: &std::path::Path) {
+fn log_create_event(path: &Path) {
     info!("watcher:create {:?}", (path, path.is_file()));
 }
 
-fn log_remove_event(path: &std::path::Path) {
+fn log_remove_event(path: &Path) {
     info!("watcher:remove {:?}", (path, path.is_file()));
 }
 
 async fn handle_modify_event(
-    path: &std::path::PathBuf, state: SharedFileMap, coder: SharedCoder
+    path: &PathBuf, state: SharedState
 ) -> Result<()> {
     info!("watcher:modify {:?}", (path, path.is_file()));
 
@@ -78,7 +79,7 @@ async fn handle_modify_event(
     };
 
     let mut map = state.write().await;
-    let old_content_opt = map.get(path).map(|fs| &fs.content);
+    let old_content_opt = map.file2state.get(path).map(|fs| &fs.content);
 
     if !has_content_changed(old_content_opt, &new_content) {
         return Ok(());
@@ -87,29 +88,25 @@ async fn handle_modify_event(
     log_content_change(path, old_content_opt, &new_content);
 
     let final_content = if let Some(pos) = new_content.find(CURSOR_MARKER) {
-        // let updated = replace_cursor_marker(pos, path, new_content).await?;
-        // updated
-
-        let coder = coder.write().await;
-        let updated = coder.autocomplete(&new_content, path, pos).await;
-
+        let updated = map.coder.autocomplete(&new_content, path, pos).await;
         match updated {
             Ok(updated) => {
-                std::fs::write(&path, updated.clone());
+                if let Err(e) = tokio::fs::write(path, &updated).await {
+                    warn!("Failed to write file {:?}: {}", path, e);
+                }
                 updated
-            },
+            }
             Err(e) => {
                 warn!("Failed to autocomplete file {:?}: {}", path, e);
                 new_content
-            },
+            }
         }
-
     } else {
         info!("No {} found in file {:?}", CURSOR_MARKER, path);
         new_content
     };
 
-    map.insert(path.clone(), FileState {
+    map.file2state.insert(path.clone(), FileState {
         content: final_content,
     });
 
@@ -123,9 +120,7 @@ fn has_content_changed(old: Option<&String>, new: &str) -> bool {
     }
 }
 
-fn log_content_change(
-    path: &std::path::Path, old: Option<&String>, new: &str
-) {
+fn log_content_change(path: &Path, old: Option<&String>, new: &str) {
     match old {
         Some(old) => {
             info!("File {:?} updated", path);
@@ -134,11 +129,36 @@ fn log_content_change(
                 info!("{:?}", d);
             }
         }
-        None => info!(
-            "File {:?} added with content:\n{}",
-            path, new
-        ),
+        None => info!("File {:?} added with content:\n{}", path, new),
     }
+}
+
+async fn process_path(
+    path: PathBuf,
+    event: notify::Event,
+    shared_state: SharedState,
+    in_flight: &mut HashMap<PathBuf, JoinHandle<()>>,
+) {
+    if let Some(handle) = in_flight.remove(&path) {
+        handle.abort();
+    }
+
+    let state = shared_state.clone();
+    let event = event.clone();
+    let path_clone = path.clone();
+
+    let handle = tokio::spawn(async move {
+        let start_time = std::time::Instant::now();
+        
+        let res = handle_watch_event(&path_clone, &event, state).await;
+        if let Err(e) = res {
+            error!("Error handling event for {:?}: {}", path_clone, e);
+        }
+        let elapsed = start_time.elapsed();
+        info!("Done handling event for {:?} in {:?}", path_clone, elapsed);
+    });
+
+    in_flight.insert(path, handle);
 }
 
 
@@ -147,45 +167,53 @@ async fn main() -> Result<()> {
     dotenv()?;
     init_logger();
 
-    info!("Starting anycoder");
-
-    info!("I'll help you to code.");
-    info!("All you need is to write {} wherever you want", CURSOR_MARKER);
-
-    let shared_state: SharedFileMap = Arc::new(RwLock::new(HashMap::new()));
-
     let api_key = std::env::var("OPENROUTER_API_KEY")?;
     let base_url = "https://openrouter.ai/api/v1";
     let model = "mistralai/codestral-2501";
-    // let model = "google/gemini-2.5-flash-preview-05-20";
 
     let client = LlmClient::new(&api_key, base_url, model);
     let coder = Coder::new(client);
-    let shared_coder = Arc::new(RwLock::new(coder));
+
+    let shared_state: SharedState = Arc::new(RwLock::new(State {
+        file2state: HashMap::new(),
+        coder,
+    }));
 
     let (watch_tx, mut watch_rx) = mpsc::channel::<notify::Result<Event>>(32);
     let mut watcher = recommended_watcher(move |res| {
         let _ = watch_tx.blocking_send(res);
     })?;
 
-    let dir = std::path::Path::new("..");
+    let dir = Path::new("..");
     watcher.watch(dir, RecursiveMode::Recursive)?;
 
+    info!("Starting anycoder");
+    info!("I'll help you to code.");
+    info!("All you need is to write {} wherever you want", CURSOR_MARKER);
     info!("Watching files at {:?}", dir);
+
+    let mut in_flight: HashMap<PathBuf, JoinHandle<()>> = HashMap::new();
 
     while let Some(res) = watch_rx.recv().await {
         match res {
             Ok(event) => {
-                for path in &event.paths {
-                    if !is_ignored_dir(path) {
-                        let state_clone = shared_state.clone();
-                        let coder_clone = shared_coder.clone();
-                        handle_watch_event(path, &event, state_clone, coder_clone).await;
-                    }
+                
+                let filtered_paths: Vec<PathBuf> = event.paths.iter()
+                    .filter(|path| !is_ignored_dir(path))
+                    .cloned().collect(); 
+                
+                for path in filtered_paths {
+                    process_path(
+                        path, 
+                        event.clone(), 
+                        shared_state.clone(), 
+                        &mut in_flight
+                    ).await;
                 }
             }
             Err(e) => error!("watch error: {:?}", e),
         }
     }
+
     Ok(())
 }
