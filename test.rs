@@ -6,4 +6,6 @@ fn main() {
     for fruit in fruits {
         println!("{}", fruit);
     }
+    
+    len //AI!
 }
