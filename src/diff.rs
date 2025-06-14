@@ -26,7 +26,6 @@ pub fn compute_text_edits(old: &str, new: &str) -> Vec<TextEdit> {
 
                 if let Some(last_edit) = edits.last_mut() {
                     if last_edit.end == start && last_edit.text.is_empty() {
-                        // Расширяем удаление
                         last_edit.end = end;
                     } else {
                         edits.push(TextEdit {
@@ -100,6 +99,18 @@ mod tests {
         
         assert_eq!(edits, vec![
             TextEdit { start: 30, end: 30, text: "i".to_string() },
+        ])    
+    }
+    
+    #[test]
+    fn test_compute_edits_unicode() {
+        let before = r#"println!("Current значение: {}", i);"#;
+        let after =  r#"println!("Current value: {}", i);"#;
+    
+        let edits = compute_text_edits(before, after);
+        
+        assert_eq!(edits, vec![
+            TextEdit { start: 18, end: 18 + 8*2, text: "value".to_string() },
         ])    
     }
 }

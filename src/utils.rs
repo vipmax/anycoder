@@ -24,26 +24,50 @@ pub const IGNORE_FILES: &[&str] = &[
 /// Checks if any part of the path matches an ignored directory
 pub fn is_ignored_dir(path: &std::path::PathBuf) -> bool {
     path.iter()
-        .any(|component| IGNORE_DIRS.contains(&component.to_string_lossy().as_ref()))
+        .any(|p| 
+            IGNORE_DIRS.contains(&p.to_string_lossy().as_ref())
+        )
 }
 
-pub fn chfind(haystack: &str, needle: &str) -> Option<usize> {
-    haystack.find(needle)
-        .map(|byte_pos| haystack[..byte_pos].chars().count())
-}
-
-pub fn offset_to_point(offset: usize, lines: &str) -> (usize, usize) {
+/// Converts a byte index to a line and column number
+pub fn byte_to_point(b: usize, s: &str) -> (usize, usize) {
     let mut line = 0;
     let mut col = 0;
+    let mut byte_pos = 0;
 
-    for (i, ch) in lines.chars().enumerate() {
-        if i == offset {  break }
+    for ch in s.chars() {
+        let ch_len = ch.len_utf8();
+        if byte_pos + ch_len > b {
+            break;
+        }
         if ch == '\n' {
-            line += 1; col = 0;
+            line += 1;
+            col = 0;
         } else {
             col += 1;
         }
+        byte_pos += ch_len;
     }
 
     (line, col)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_byte_to_point_ascii() {
+        let text = "hello\nworld";
+        assert_eq!(byte_to_point(6, text), (1, 0));
+        assert_eq!(byte_to_point(8, text), (1, 2));
+    }
+    
+    #[test]
+    fn test_byte_to_point_russian() {
+        let text = "привет\nмир";
+        assert_eq!(byte_to_point(13, text), (1, 0));
+        assert_eq!(byte_to_point(15, text), (1, 1));
+        assert_eq!(byte_to_point(6, text), (0, 3));
+    }    
 }

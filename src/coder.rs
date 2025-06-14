@@ -3,7 +3,8 @@ use crate::llm::LlmClient;
 use crate::diff::{compute_text_edits, TextEdit};
 use serde_json::json;
 use crate::prompts::{SYSTEM_PROMPT, REMINDER};
-use crate::utils::{ chfind, offset_to_point };
+use crate::utils::{ byte_to_point };
+use log::{debug, error, info};
 
 pub const CURSOR_MARKER: &str = "??";
 const STOKEN: &str = "<|SEARCH|>";
@@ -32,7 +33,7 @@ impl Coder {
     ) -> anyhow::Result<String> {
 
         let context = self.build_context(original, cursor, 3);
-        println!("context {:?}", context);
+        debug!("context {:?}", context);
 
         let big_context = self.build_context(original, cursor, 1000);
 
@@ -44,13 +45,13 @@ impl Coder {
         ];
 
         let response = self.llm.chat(messages).await?;
-        println!("response {}", response);
+        debug!("response {}", response);
 
         let patch = self.parse_patch(&response, cursor)?;
-        println!("patch {:?}", patch);
+        debug!("patch {:?}", patch);
 
         let edits = compute_text_edits(&patch.search, &patch.replace);
-        println!("edits {:?}", edits);
+        debug!("edits {:?}", edits);
 
         let edits = edits.iter().map(|edit| {
             let s = edit.start + patch.start;
@@ -68,7 +69,7 @@ impl Coder {
     ) -> (String, usize) {
         let lines: Vec<&str> = original.lines().collect();
 
-        let (line, col) = offset_to_point(cursor, original);
+        let (line, col) = byte_to_point(cursor, original);
         let mut cursor_line = line;
 
         let mut before = context_lines;
@@ -86,7 +87,7 @@ impl Coder {
 
         let context = lines[start_line..=end_line].join("\n");
         
-        let cursor_relative = chfind(&context, CURSOR_MARKER)
+        let cursor_relative = context.find(CURSOR_MARKER)
             .ok_or_else(|| anyhow::anyhow!(
                 "CURSOR_MARKER not found in context, {}", context)
             ).unwrap();
@@ -103,30 +104,25 @@ impl Coder {
         &self, patch: &str, cursor: usize
     ) -> anyhow::Result<Patch> {
         let search_start = patch.find(STOKEN)
-            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing <|SEARCH|>"))?;
+            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", STOKEN))?;
         let replace_divider = patch.find(DTOKEN)
-            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing <|DIVIDE|>"))?;
+            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", DTOKEN))?;
         let replace_end = patch.find(RTOKEN)
-            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing <|REPLACE|>"))?;
+            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", RTOKEN))?;
 
         let search = &patch[search_start + STOKEN.len()..replace_divider];
-        let cursor_pos = search.find(CTOKEN);
+        
+        let cursor_pos = search.find(CTOKEN)
+            .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", CTOKEN))?;
 
         let search_no_cursor = search.replace(CTOKEN, "");
 
         let replace = &patch[replace_divider + DTOKEN.len()..];
         let replace = replace.replace(RTOKEN, "").replace(CTOKEN, "");
-
-        let (start, end) = if let Some(pos) = cursor_pos {
-            let before = &search[..pos];
-            let after = &search[pos + CTOKEN.len()..];
-            let start = cursor.saturating_sub(before.chars().count());
-            let end = start + before.chars().count() + after.chars().count();
-            (start, end)
-        } else {
-            let len = search_no_cursor.chars().count();
-            (cursor, cursor + len)
-        };
+        
+        let before = &search[..cursor_pos];
+        
+        let start = cursor.saturating_sub(before.len());
 
         Ok(Patch {
             start,
@@ -136,9 +132,10 @@ impl Coder {
     }
 
     fn apply_text_edits(
-        &self, original: &str, edits: &Vec<TextEdit>
+        &self, original: &str, edits: &Vec<TextEdit>,
     ) -> anyhow::Result<String> {
         let mut edits = edits.clone();
+        
         // Sort edits by start position in descending order
         // so that applying edits from the end prevents index shifting issues
         edits.sort_by(|a, b| b.start.cmp(&a.start));
@@ -153,8 +150,8 @@ impl Coder {
             }else {
                 result.replace_range(edit.start..edit.end, &edit.text);
             }
-        }
-
+        }    
+        
         Ok(result)
     }
 
@@ -179,7 +176,7 @@ fn main() {
 }
         "#};
 
-        let cursor = chfind(&code, CURSOR_MARKER).unwrap();
+        let cursor = code.find(CURSOR_MARKER).unwrap();
 
         let coder = Coder::new(LlmClient::new("", "", ""));
 
@@ -206,6 +203,22 @@ fn main() {
 
         Ok(())
     }
+    
+    #[test]
+    fn test_parse_patch_unicode() -> anyhow::Result<()> {
+        let coder = Coder::new(LlmClient::new("", "", ""));
+
+        let patch = r#"<|SEARCH|>let <|cursor|> = "йцук";<|DIVIDE|>let x = "йцук";<|REPLACE|>"#;
+        let start_pos = 0;
+
+        let parsed = coder.parse_patch(patch, start_pos)?;
+
+        assert_eq!(parsed.start, start_pos);
+        assert_eq!(parsed.search, "let  = \"йцук\";");
+        assert_eq!(parsed.replace, "let x = \"йцук\";");
+
+        Ok(())
+    }
 
     #[test]
     fn test_apply_text_edits() -> anyhow::Result<()> {
@@ -224,6 +237,37 @@ fn main() {
         assert_eq!(
             updated,
             "The slow brown fox jumps over the sleepy dog and cat"
+        );
+        
+        Ok(())
+    }
+    
+    #[test]
+    fn test_apply_text_edits_unicode() -> anyhow::Result<()> {
+        let coder = Coder::new(LlmClient::new("", "", ""));
+        let original = indoc! {r#"
+fn main() {
+    let fruits = vec![];
+    итер
+}"#};
+        
+        let s = "итер";
+        let start = original.find(s).unwrap();
+        let end = start + s.len();
+        
+        let edits = vec![
+            TextEdit { start, end, text: "for (fruit, quantity) in &fruits {".to_string() }, 
+        ];
+
+        let updated = coder.apply_text_edits(original, &edits)?;
+
+        assert_eq!(
+            updated,
+            indoc! {r#"
+                fn main() {
+                    let fruits = vec![];
+                    for (fruit, quantity) in &fruits {
+                }"#}
         );
         
         Ok(())
@@ -248,7 +292,7 @@ fn main() {
 }
         "#};
 
-        let cursor = chfind(&code, CURSOR_MARKER).unwrap();
+        let cursor = code.find(CURSOR_MARKER).unwrap();
 
         let path = PathBuf::from("test.rs");
 
