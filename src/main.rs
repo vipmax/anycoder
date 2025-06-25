@@ -1,5 +1,8 @@
 use log::{debug, error, info, warn};
-use notify::{recommended_watcher, Event, RecursiveMode, Watcher};
+use notify::{
+    recommended_watcher, Event, RecursiveMode, Watcher,
+    event::ModifyKind,
+};
 use tokio::sync::mpsc;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
@@ -36,33 +39,12 @@ fn init_logger() {
         .init();
 }
 
-async fn handle_watch_event(
-    path: &PathBuf, event: &notify::Event, state: SharedState
-) -> Result<()> {
-    info!("watch event: {:?}", event);
-
-    match event.kind {
-        notify::EventKind::Create(_) => {
-            log_create_event(path);
-        }
-        notify::EventKind::Remove(_) => {
-            log_remove_event(path);
-        }
-        notify::EventKind::Modify(notify::event::ModifyKind::Data(_)) => {
-            handle_modify_event(path, state).await?;
-        }
-        _ => {}
-    }
-
-    Ok(())
-}
-
 fn log_create_event(path: &Path) {
-    info!("watcher:create {:?}", (path, path.is_file()));
+    // info!("watcher:create {:?}", (path, path.is_file()));
 }
 
 fn log_remove_event(path: &Path) {
-    info!("watcher:remove {:?}", (path, path.is_file()));
+    // info!("watcher:remove {:?}", (path, path.is_file()));
 }
 
 async fn handle_modify_event(
@@ -73,15 +55,17 @@ async fn handle_modify_event(
     let new_content = match tokio::fs::read_to_string(path).await {
         Ok(content) => content,
         Err(err) => {
-            warn!("Failed to read file {:?}: {}", path, err);
-            return Ok(());
+            panic!("Failed to read file {:?}: {}", path, err);
         }
     };
+    
+    info!("watcher:new_content {:?}", new_content);
 
     let mut map = state.write().await;
     let old_content_opt = map.file2state.get(path).map(|fs| &fs.content);
 
     if !has_content_changed(old_content_opt, &new_content) {
+        info!("watcher:content_unchanged {:?}", path);
         return Ok(());
     }
 
@@ -139,52 +123,71 @@ async fn process_path(
     shared_state: SharedState,
     in_flight: &mut HashMap<PathBuf, JoinHandle<()>>,
 ) {
-    if let Some(handle) = in_flight.remove(&path) {
-        handle.abort();
-    }
-
-    let state = shared_state.clone();
-    let event = event.clone();
-    let path_clone = path.clone();
-
-    let handle = tokio::spawn(async move {
-        let start_time = std::time::Instant::now();
-        
-        let res = handle_watch_event(&path_clone, &event, state).await;
-        if let Err(e) = res {
-            error!("Error handling event for {:?}: {}", path_clone, e);
+    match event.kind {
+        notify::EventKind::Create(_) => {
+            log_create_event(&path);
         }
-        let elapsed = start_time.elapsed();
-        info!("Done handling event for {:?} in {:?}", path_clone, elapsed);
-    });
-
-    in_flight.insert(path, handle);
+        notify::EventKind::Remove(_) => {
+            log_remove_event(&path);
+        }
+        notify::EventKind::Modify(ModifyKind::Data(_)) => {
+            
+            if let Some(handle) = in_flight.remove(&path) {
+                handle.abort();
+            }
+        
+            let state = shared_state.clone();
+            let path_clone = path.clone();
+        
+            let handle = tokio::spawn(async move {
+                let start_time = std::time::Instant::now();
+                
+                let res = handle_modify_event(&path_clone, state).await;
+                if let Err(e) = res {
+                    error!("Error handling event for {:?}: {}", path_clone, e);
+                }
+                let elapsed = start_time.elapsed();
+                info!("Done handling event for {:?} in {:?}", path_clone, elapsed);
+            });
+        
+            in_flight.insert(path, handle);
+            
+        }
+        _ => { }
+    }
 }
 
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv()?;
+    dotenv();
     init_logger();
 
-    let api_key = std::env::var("OPENROUTER_API_KEY")?;
-    let base_url = "https://openrouter.ai/api/v1";
-    let model = "mistralai/codestral-2501";
+    let api_key = std::env::var("OPENROUTER_API_KEY")
+        .expect("OPENROUTER_API_KEY environment variable not set");
+    
+    let base_url = std::env::var("OPENROUTER_BASE_URL")
+        .unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string());
+    
+    let model = std::env::var("OPENROUTER_MODEL")
+        .unwrap_or_else(|_| "mistralai/codestral-2501".to_string());
 
-    let client = LlmClient::new(&api_key, base_url, model);
+    let client = LlmClient::new(&api_key, &base_url, &model);
     let coder = Coder::new(client);
 
-    let shared_state: SharedState = Arc::new(RwLock::new(State {
-        file2state: HashMap::new(),
-        coder,
-    }));
+    let shared_state: SharedState = Arc::new(RwLock::new(
+        State {
+            file2state: HashMap::new(),
+            coder,
+        }
+    ));
 
     let (watch_tx, mut watch_rx) = mpsc::channel::<notify::Result<Event>>(32);
     let mut watcher = recommended_watcher(move |res| {
         let _ = watch_tx.blocking_send(res);
     })?;
 
-    let dir = Path::new("..");
+    let dir = Path::new(".");
     watcher.watch(dir, RecursiveMode::Recursive)?;
 
     info!("Starting anycoder");
@@ -197,7 +200,6 @@ async fn main() -> Result<()> {
     while let Some(res) = watch_rx.recv().await {
         match res {
             Ok(event) => {
-                
                 let filtered_paths: Vec<PathBuf> = event.paths.iter()
                     .filter(|path| !is_ignored_dir(path))
                     .cloned().collect(); 
