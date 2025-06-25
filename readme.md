@@ -166,5 +166,3 @@ This will show:
 ## Support
 
 If you encounter any issues or have questions, please open an issue on the GitHub repository.
-
-mkdir -p ~/.local/bin && curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.zip && unzip -o anycoder-linux.zip && chmod +x anycoder && mv anycoder ~/.local/bin/ && grep -q "$HOME/.local/bin" ~/.profile || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile && source ~/.profile
