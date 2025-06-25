@@ -37,7 +37,7 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/vipmax/anycoder.git
 cd anycoder
 ```
 2. Install the project:
