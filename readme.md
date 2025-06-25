@@ -31,7 +31,19 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 - Rust (latest stable version)
 - An OpenRouter API key
 
+### Run
+
+linux:
+```bash
+curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.tar.gz && tar -xzf anycoder-linux.tar.gz && ./anycoder
+```
+macos m processors:
+```bash
+curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-universal-apple-darwin.tar.gz && tar -xzf anycoder-universal-apple-darwin.tar.gz && ./anycoder
+```
+
 ### Installation
+
 
 1. Clone the repository:
 ```bash
@@ -149,3 +161,5 @@ This will show:
 ## Support
 
 If you encounter any issues or have questions, please open an issue on the GitHub repository.
+
+mkdir -p ~/.local/bin && curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.zip && unzip -o anycoder-linux.zip && chmod +x anycoder && mv anycoder ~/.local/bin/ && grep -q "$HOME/.local/bin" ~/.profile || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile && source ~/.profile
