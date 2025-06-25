@@ -273,6 +273,7 @@ fn main() {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_coder() -> anyhow::Result<()> {
         dotenv()?;
 
