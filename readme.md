@@ -6,10 +6,7 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 
 ## Demo 
 
-<video src="assets/demo.mp4" controls width="600">
-  Your browser does not support the video tag.
-</video>
-
+![demo](assets/demo.gif)
 
 ## Features
 
