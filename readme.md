@@ -24,23 +24,23 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 4. anycoder analyzes the generated code patch and tries to apply it to file
 5. If the patch is successfully applied, anycoder rewrites the file
 
+### Run
+
+Linux:
+```bash
+curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.tar.gz && tar -xzf anycoder-linux.tar.gz && ./anycoder
+```
+Macos:
+```bash
+curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-universal-apple-darwin.tar.gz && tar -xzf anycoder-universal-apple-darwin.tar.gz && ./anycoder
+```
+
 ## Setup
 
 ### Prerequisites
 
 - Rust (latest stable version)
 - An OpenRouter API key
-
-### Run
-
-linux:
-```bash
-curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.tar.gz && tar -xzf anycoder-linux.tar.gz && ./anycoder
-```
-macos m processors:
-```bash
-curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-universal-apple-darwin.tar.gz && tar -xzf anycoder-universal-apple-darwin.tar.gz && ./anycoder
-```
 
 ### Installation
 
