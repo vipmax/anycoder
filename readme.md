@@ -26,6 +26,11 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 
 ### Run
 
+Set environment variable `OPENROUTER_API_KEY`:
+```bash
+export OPENROUTER_API_KEY=sk-...
+```
+
 Linux:
 ```bash
 curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-linux.tar.gz && tar -xzf anycoder-linux.tar.gz && ./anycoder
