@@ -2,7 +2,7 @@
 
 An intelligent code completion tool that watches your files and automatically suggests completions when you place a `??` in your code.  
 
-It doesn't matter what editor or IDE you're using — as long as the file is saved, `anycoder` can update help you.
+It doesn't matter what editor or IDE you're using — as long as the file is saved, `anycoder` can help you.
 
 ## Demo 
 
@@ -20,8 +20,9 @@ It doesn't matter what editor or IDE you're using — as long as the file is sav
 
 1. anycoder watches all files in your project directory
 2. When you save a file containing the `??` marker, it detects the change
-3. The AI analyzes the surrounding context and generates appropriate code
-4. The generated code automatically replaces the `??` marker in your file
+3. The AI analyzes the surrounding context and generates appropriate code patch
+4. anycoder analyzes the generated code patch and tries to apply it to file
+5. If the patch is successfully applied, anycoder rewrites the file
 
 ## Setup
 
