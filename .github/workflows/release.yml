@@ -5,25 +5,63 @@ on:
     types: [published]
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Build binary
+      - name: Build Linux binary
         run: cargo build --release
-
-      - name: Archive binary
+      - name: Archive Linux binary
         run: |
           mkdir -p dist
           cp target/release/anycoder dist/
           cd dist
           zip anycoder-linux.zip anycoder
-
-      - name: Upload release asset
+      - name: Upload Linux asset
         uses: softprops/action-gh-release@v2
         with:
           files: dist/anycoder-linux.zip
+
+  build-macos-x64:
+    runs-on: macos-latest
+    env:
+      CARGO_BUILD_TARGET: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build macOS x86_64 binary
+        run: cargo build --release --target x86_64-apple-darwin
+      - name: Archive macOS x86_64 binary
+        run: |
+          mkdir -p dist
+          cp target/x86_64-apple-darwin/release/anycoder dist/
+          cd dist
+          zip anycoder-macos-x64.zip anycoder
+      - name: Upload macOS x86_64 asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/anycoder-macos-x64.zip
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    env:
+      CARGO_BUILD_TARGET: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build macOS arm64 binary
+        run: cargo build --release --target aarch64-apple-darwin
+      - name: Archive macOS arm64 binary
+        run: |
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/anycoder dist/
+          cd dist
+          zip anycoder-macos-arm64.zip anycoder
+      - name: Upload macOS arm64 asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/anycoder-macos-arm64.zip
