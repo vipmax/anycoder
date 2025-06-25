@@ -170,9 +170,8 @@ mod tests {
         let code = indoc! {r#"
 fn main() {
     for i in 0..5 {
-        println!("Current value: {}", i);
+        println!("Current value: {}", ??);
     }
-    println!("end: {}", <|cursor|>);
 }
         "#};
 
@@ -185,7 +184,7 @@ fn main() {
         println!("context:\n {:?}", context);
 
         assert!(context.0.contains(CTOKEN));
-        assert!(context.1 == 74);
+        assert!(context.1 == 12);
     }
 
     #[test]
@@ -287,12 +286,12 @@ fn main() {
         let code = indoc! {r#"
 fn main() {
     for i in 0..5 {
-        println!("Current value: {}", i);
+        println!("Current value: {}", ??);
     }
 }
         "#};
 
-        let cursor = code.find(CURSOR_MARKER).unwrap();
+        let cursor = code.find(CURSOR_MARKER).ok_or(anyhow::anyhow!("Cursor not found"))?;
 
         let path = PathBuf::from("test.rs");
 
