@@ -44,8 +44,9 @@ mod tests {
     use dotenv::dotenv;
 
     #[tokio::test]
+    #[ignore]
     async fn test_openrouter_chat() -> anyhow::Result<()> {
-        dotenv()?;
+        dotenv();
 
         let api_key = std::env::var("OPENROUTER_API_KEY")?;
         let base_url = "https://openrouter.ai/api/v1";
