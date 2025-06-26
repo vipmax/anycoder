@@ -112,7 +112,12 @@ fn main() {
 - `.git`, `.idea`, `.vscode`
 - `node_modules`, `dist`, `target`
 - `__pycache__`, `.pytest_cache`
-- Build and cache directories
+
+You can customize ignored directories by setting the `ANYCODER_IGNORE_DIRS` environment variable.
+``` bash
+export ANYCODER_IGNORE_DIRS="my_custom_dir,temp_folder,old_stuff"
+export ANYCODER_IGNORE_FILES="*.backup,config.local,secrets.json"
+```
 
 ### Model Configuration
 

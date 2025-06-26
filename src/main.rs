@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use dotenv::dotenv;
 
 mod utils;
-use utils::{has_content_changed, is_ignored_dir};
+use utils::{has_content_changed, is_ignored_path};
 
 mod diff;
 use crate::diff::compute_text_edits;
@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
         match res {
             Ok(event) => {
                 let filtered_paths: Vec<PathBuf> = event.paths.iter()
-                    .filter(|path| !is_ignored_dir(path))
+                    .filter(|path| !is_ignored_path(path))
                     .cloned().collect(); 
                 
                 for path in filtered_paths {
