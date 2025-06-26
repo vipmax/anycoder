@@ -14,7 +14,7 @@ pub const IGNORE_DIRS: &[&str] = &[
     "coder.rs",
 ];
 
-pub const IGNORE_FILES: &[&str] = &[
+pub const _IGNORE_FILES: &[&str] = &[
     ".DS_Store",
     ".gitignore",
     ".env",
@@ -50,6 +50,13 @@ pub fn byte_to_point(b: usize, s: &str) -> (usize, usize) {
     }
 
     (line, col)
+}
+
+pub fn has_content_changed(old: Option<&String>, new: &str) -> bool {
+    match old {
+        Some(old_content) => old_content != new,
+        None => true,
+    }
 }
 
 #[cfg(test)]

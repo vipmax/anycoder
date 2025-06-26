@@ -1,6 +1,5 @@
 use async_openai::{config::OpenAIConfig, Client};
 use serde_json::{json, Value};
-use crate::prompts::{SYSTEM_PROMPT, REMINDER};
 
 pub struct LlmClient {
     client: Client<OpenAIConfig>,
@@ -12,7 +11,7 @@ impl LlmClient {
         let config = OpenAIConfig::new()
             .with_api_key(api_key)
             .with_api_base(base_url);
-
+        
         let client = Client::with_config(config);
 
         Self {
@@ -22,15 +21,10 @@ impl LlmClient {
     }
 
     pub async fn chat(&self, messages: Vec<Value>) -> anyhow::Result<String> {
-        let response: Value = self.client.chat().create_byot(json!({
-            "model": self.model,
-            "messages": messages,
-        })).await?;
-        
+        let request = json!({ "model": self.model, "messages": messages });
+        let response: Value = self.client.chat().create_byot(request).await?;
         let content = response["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+            .as_str().unwrap_or("").to_string();
 
         Ok(content)
     }
@@ -42,11 +36,12 @@ mod tests {
     use super::*;
     use indoc::indoc;
     use dotenv::dotenv;
+    use crate::prompts::{SYSTEM_PROMPT, REMINDER};
 
     #[tokio::test]
     #[ignore]
     async fn test_openrouter_chat() -> anyhow::Result<()> {
-        dotenv();
+        dotenv()?;
 
         let api_key = std::env::var("OPENROUTER_API_KEY")?;
         let base_url = "https://openrouter.ai/api/v1";

@@ -4,7 +4,7 @@ use crate::diff::{compute_text_edits, TextEdit};
 use serde_json::json;
 use crate::prompts::{SYSTEM_PROMPT, REMINDER};
 use crate::utils::{ byte_to_point };
-use log::{debug, error, info};
+use log::{debug};
 
 pub const CURSOR_MARKER: &str = "??";
 const STOKEN: &str = "<|SEARCH|>";
@@ -29,7 +29,7 @@ impl Coder {
     }
 
     pub async fn autocomplete(
-        &self, original: &str, path: &PathBuf, cursor: usize
+        &self, original: &str, _path: &PathBuf, cursor: usize
     ) -> anyhow::Result<String> {
 
         let context = self.build_context(original, cursor, 3);
@@ -69,8 +69,8 @@ impl Coder {
     ) -> (String, usize) {
         let lines: Vec<&str> = original.lines().collect();
 
-        let (line, col) = byte_to_point(cursor, original);
-        let mut cursor_line = line;
+        let (line, _col) = byte_to_point(cursor, original);
+        let cursor_line = line;
 
         let mut before = context_lines;
         let mut after = context_lines;
@@ -107,7 +107,7 @@ impl Coder {
             .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", STOKEN))?;
         let replace_divider = patch.find(DTOKEN)
             .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", DTOKEN))?;
-        let replace_end = patch.find(RTOKEN)
+        let _replace_end = patch.find(RTOKEN)
             .ok_or_else(|| anyhow::anyhow!("Invalid patch format: missing {}", RTOKEN))?;
 
         let search = &patch[search_start + STOKEN.len()..replace_divider];
