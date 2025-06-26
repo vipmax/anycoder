@@ -40,13 +40,6 @@ Macos:
 curl -LO https://github.com/vipmax/anycoder/releases/latest/download/anycoder-universal-apple-darwin.tar.gz && tar -xzf anycoder-universal-apple-darwin.tar.gz && ./anycoder
 ```
 
-## Setup
-
-### Prerequisites
-
-- Rust (latest stable version)
-- An OpenRouter API key
-
 ### Installation
 
 
@@ -80,7 +73,7 @@ anycoder
 ```rust
 fn main() {
     for i in 0..5 {
-        println!("Current value: {}", );
+        println!("Current value: {}", ??);
     }
 }
 ```
